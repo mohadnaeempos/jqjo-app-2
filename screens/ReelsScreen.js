@@ -20,6 +20,8 @@ import Icon from 'react-native-vector-icons/FontAwesome';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons, Entypo } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -166,16 +168,34 @@ export default function ReelsScreen() {
 
 const shareVideo = async () => {
   try {
-    const { video_id, slug, title } = currentVideo;
+    const { video_id, slug, title, cloudflare_url, news_url } = currentVideo;
 
-    const finalSlug = slug || slugify(title || 'video');
-    const newsUrl = `${BASE_URL}/news/en/${finalSlug}/${video_id}`;
+    if (!cloudflare_url) {
+      Alert.alert('Error', 'No video file available to share.');
+      return;
+    }
 
-    await Share.share({
-      message: `Check out this video! News: ${newsUrl}`,
-    });
+    const safeTitle = slug || slugify(title || 'video');
+    const fileName = `${safeTitle}-${video_id}.mp4`;
+    const fileUri = FileSystem.cacheDirectory + fileName;
+
+    // Download the video file only if it doesn't exist
+    const fileInfo = await FileSystem.getInfoAsync(fileUri);
+    if (!fileInfo.exists) {
+      const downloadResult = await FileSystem.downloadAsync(cloudflare_url, fileUri);
+      if (downloadResult.status !== 200) throw new Error('Failed to download video');
+    }
+
+    // Try to share the video file
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(fileUri, {
+        mimeType: 'video/mp4',
+        dialogTitle: 'Share Video',
+      });
+    } 
   } catch (error) {
     console.error('Error sharing video:', error);
+    Alert.alert('Failed to share video. Please try again.');
   } finally {
     setShowShareModal(false);
   }
@@ -185,11 +205,11 @@ const shareVideo = async () => {
 
 const shareNews = async () => {
   try {
-    const { video_id, title, slug } = currentVideo;
+    const { video_id,news_id, title, slug } = currentVideo;
 
     const safeSlug = slug || slugify(title || 'news');
     const videoLink = `${BASE_URL}/reels.php?ref=${video_id}`;
-    const newsLink = `${BASE_URL}/news/en/${safeSlug}/${video_id}`;
+    const newsLink = `${BASE_URL}/news/en/${safeSlug}/${news_id}`;
 
     const message = `Check out this news: ${title}\n\nVideo Link: ${videoLink}\n\nNews Link: ${newsLink}`;
 

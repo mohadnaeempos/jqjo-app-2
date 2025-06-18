@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "JQJO",
-    "slug": "JQJO",
+    "slug": "jdjq",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -53,8 +53,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "a3c1f73a-57f8-4f46-8f93-405a1ebb16e8"
+        "projectId": "c9a25006-e1c1-448f-bf70-3f87ae7144d2"
       }
-    }
+    },
+    "owner": "mohadnaeem"
   }
 }
