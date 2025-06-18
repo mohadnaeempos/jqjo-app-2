@@ -168,9 +168,9 @@ export default function ReelsScreen() {
 
 const shareVideo = async () => {
   try {
-    const { video_id, slug, title, cloudflare_url, news_url } = currentVideo;
+    const { video_id, slug, title, video_url, news_url } = currentVideo;
 
-    if (!cloudflare_url) {
+    if (!video_url) {
       Alert.alert('Error', 'No video file available to share.');
       return;
     }
@@ -182,7 +182,7 @@ const shareVideo = async () => {
     // Download the video file only if it doesn't exist
     const fileInfo = await FileSystem.getInfoAsync(fileUri);
     if (!fileInfo.exists) {
-      const downloadResult = await FileSystem.downloadAsync(cloudflare_url, fileUri);
+      const downloadResult = await FileSystem.downloadAsync(video_url, fileUri);
       if (downloadResult.status !== 200) throw new Error('Failed to download video');
     }
 
@@ -200,7 +200,6 @@ const shareVideo = async () => {
     setShowShareModal(false);
   }
 };
-
 
 
 const shareNews = async () => {
