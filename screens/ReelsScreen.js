@@ -38,6 +38,8 @@ export default function ReelsScreen() {
   const [muted, setMuted] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [currentVideo, setCurrentVideo] = useState(null);
+  const [isSharing, setIsSharing] = useState(false);
+const [downloadProgress, setDownloadProgress] = useState(0);
   
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
@@ -167,6 +169,11 @@ export default function ReelsScreen() {
 };
 
 const shareVideo = async () => {
+  if (isSharing) return;
+  
+  setIsSharing(true);
+  setDownloadProgress(0);
+
   try {
     const { video_id, slug, title, video_url, news_url } = currentVideo;
 
@@ -175,32 +182,65 @@ const shareVideo = async () => {
       return;
     }
 
+    // Create filename and path
     const safeTitle = slug || slugify(title || 'video');
     const fileName = `${safeTitle}-${video_id}.mp4`;
     const fileUri = FileSystem.cacheDirectory + fileName;
 
-    // Download the video file only if it doesn't exist
+    // Check if file exists and is valid (at least 100KB)
     const fileInfo = await FileSystem.getInfoAsync(fileUri);
-    if (!fileInfo.exists) {
-      const downloadResult = await FileSystem.downloadAsync(video_url, fileUri);
-      if (downloadResult.status !== 200) throw new Error('Failed to download video');
+    const shouldDownload = !fileInfo.exists || (fileInfo.size / 1024) < 100;
+
+    // Download if needed with progress tracking
+    if (shouldDownload) {
+      const downloadCallback = (progress) => {
+        setDownloadProgress(progress.totalBytesWritten / progress.totalBytesToWrite);
+      };
+
+      const downloadResult = await FileSystem.createDownloadResumable(
+        video_url,
+        fileUri,
+        {},
+        downloadCallback
+      ).downloadAsync();
+
+      if (!downloadResult || downloadResult.status !== 200) {
+        throw new Error('Failed to download video');
+      }
     }
 
-    // Try to share the video file
+    // Create share message with both video and news URLs
+const shareMessage = `Check out this video! News: ${news_url || `${BASE_URL}/news`}`;
+
+
+    // Platform-optimized sharing
     if (await Sharing.isAvailableAsync()) {
       await Sharing.shareAsync(fileUri, {
         mimeType: 'video/mp4',
-        dialogTitle: 'Share Video',
+        dialogTitle: title || 'Share Video',
+        message: shareMessage,
+        UTI: 'public.mpeg-4' // iOS specific
       });
-    } 
+    } else {
+      await Share.share({
+        title: title || 'Share Video',
+        message: shareMessage,
+        url: fileUri
+      });
+    }
+
   } catch (error) {
     console.error('Error sharing video:', error);
-    Alert.alert('Failed to share video. Please try again.');
+    Alert.alert(
+      'Sharing Error', 
+      error.message || 'Failed to share video. Please try again.'
+    );
   } finally {
+    setIsSharing(false);
+    setDownloadProgress(0);
     setShowShareModal(false);
   }
 };
-
 
 const shareNews = async () => {
   try {
@@ -336,15 +376,32 @@ const shareNews = async () => {
       >
         <Icon name="close" size={24} color="#fff" />
       </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.shareButton, { backgroundColor: '#FFD700' }]}
-        onPress={shareVideo}
-      >
-        <Text style={[styles.shareButtonText, { color: '#000' }]}>
-          Share Video
+<TouchableOpacity
+  style={[styles.shareButton, { 
+    backgroundColor: '#FFD700',
+    opacity: isSharing ? 0.7 : 1 
+  }]}
+  onPress={shareVideo}
+  disabled={isSharing}
+>
+  {isSharing ? (
+    <View style={styles.progressContainer}>
+      <ActivityIndicator size="small" color="#000" />
+      {downloadProgress > 0 && (
+        <Text style={styles.progressText}>
+          {Math.round(downloadProgress * 100)}%
         </Text>
-      </TouchableOpacity>
+      )}
+    </View>
+  ) : (
+    <>
+      
+      <Text style={[styles.shareButtonText, { color: '#000' }]}>
+        Share Video
+      </Text>
+    </>
+  )}
+</TouchableOpacity>
 
       <TouchableOpacity
         style={[styles.shareButton, { backgroundColor: '#1a1a1a' }]}
@@ -505,6 +562,16 @@ closeIconContainer: {
   right: 10,
   zIndex: 10,
   padding: 8,
+  },
+progressContainer: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+progressText: {
+  marginLeft: 8,
+  color: '#000',
+  fontSize: 14,
 },
 
 
